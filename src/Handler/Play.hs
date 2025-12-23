@@ -127,6 +127,7 @@ parseMessage =
 -- | Joins the practice-match queue with a given team. Requires authentication.
 getPracticeQueueR :: [Text] -> Handler Value
 getPracticeQueueR [a1, b1, c1, a2, b2, c2] = do
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
     when (duplic [a1, b1, c1] || duplic [a2, b2, c2]) $
         invalidArgs ["Duplicate characters"]
 
@@ -138,9 +139,10 @@ getPracticeQueueR [a1, b1, c1, a2, b2, c2] = do
     unlocked <- Mission.unlocked
     when (any (∉ unlocked) [a1, b1, c1]) $ invalidArgs ["Character(s) locked"]
 
-    runDB $ update who [ UserTeam     =. Just [a1, b1, c1]
-                       , UserPractice =. [a2, b2, c2]
-                       ]
+    unless lanMode $
+        runDB $ update who [ UserTeam     =. Just [a1, b1, c1]
+                           , UserPractice =. [a2, b2, c2]
+                           ]
 
     liftIO Random.createSystemRandom >>= runReaderT do
         rand     <- ask
@@ -215,6 +217,7 @@ gameSocket :: ∀ m. ( MonadHandler m, App ~ HandlerSite m
 gameSocket = webSockets do
     who      <- Auth.requireAuthId
     settings <- getsYesod App.settings
+    let lanMode = Settings.lanMode settings
     unlocked <- liftHandler Mission.unlocked
 
     (section, team, Response mvar info) <- untilJust $
@@ -226,7 +229,8 @@ gameSocket = webSockets do
             let teamNames = Character.ident <$> team
                 locked = filter (∉ unlocked) teamNames
             when (not $ null locked) . throwE $ Client.Locked locked
-            liftDB $ update who [UserTeam =. Just teamNames]
+            unless lanMode $
+                liftDB $ update who [UserTeam =. Just teamNames]
 
             queued <- Queue.queue section team {-! BLOCKS !-}
             return (section, teamNames, queued)
@@ -246,10 +250,11 @@ gameSocket = webSockets do
                 tryEnact settings player mvar {-! BLOCKS !-}
                 game <- P.game
 
-                unless (Game.inProgress game) . liftDB . void $ forkIO do
-                    match <- Match.load . Match.fromGame game player who $
-                             GameInfo.vsWho info
-                    mapM_ Rating.update match
+                unless lanMode $
+                    unless (Game.inProgress game) . liftDB . void $ forkIO do
+                        match <- Match.load . Match.fromGame game player who $
+                                 GameInfo.vsWho info
+                        mapM_ Rating.update match
             else
                 liftST . Wrapper.replace wrapper =<< ask
 
@@ -261,19 +266,22 @@ gameSocket = webSockets do
 
     when (section == Queue.Quick) do -- eventually, || Queue.Ladder
         let outcome = Match.outcome (Wrapper.game game) player
-        if outcome == Defeat && Game.forfeit (Wrapper.game game) then
+        if lanMode then
+            Client.send $ Client.Rewards []
+        else if outcome == Defeat && Game.forfeit (Wrapper.game game) then
             Client.send $ Client.Rewards [Reward "Forfeit" 0]
         else do
             dnaReward <- liftHandler .
                 Mission.awardDNA Queue.Quick outcome $ GameInfo.war info
             Client.send $ Client.Rewards dnaReward
 
-        liftHandler do
-            case outcome of
-                Victory -> Mission.processWin team
-                _       -> Mission.processDefeat team
-            Mission.processUnpicked team
-            traverse_ Mission.progress $ Wrapper.progress game
+        unless lanMode $
+            liftHandler do
+                case outcome of
+                    Victory -> Mission.processWin team
+                    _       -> Mission.processDefeat team
+                Mission.processUnpicked team
+                traverse_ Mission.progress $ Wrapper.progress game
 
   `finally`
       Queue.leave

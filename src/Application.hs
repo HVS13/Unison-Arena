@@ -60,12 +60,20 @@ mkYesodDispatch "App" App.resourcesApp
 -- runs migrations from [config/db.sql](db.sql),
 -- initializes the character ID table with 'Mission.initDB',
 -- and returns the table to be stored in 'characterIDs'.
-initDB :: ∀ m. MonadIO m => SqlPersistT m (Bimap CharacterId Text)
-initDB = do
+initDB :: ∀ m. MonadIO m => Settings -> SqlPersistT m (Bimap CharacterId Text)
+initDB settings = do
     Sql.runMigration Model.migrateAll
     dbMigrationsSql <- readFile "config/db.sql"
     Sql.rawExecute (decodeUtf8 dbMigrationsSql) []
+    when (Settings.lanMode settings && Settings.lanResetDb settings) resetLanDb
     Mission.initDB
+  where
+    resetLanDb =
+        Sql.rawExecute
+            "TRUNCATE TABLE \"forum_like\", \"forum_post\", \"forum_topic\", \
+            \\"mission\", \"unlocked\", \"usage\", \"news\", \"user\" \
+            \RESTART IDENTITY CASCADE"
+            []
 
 -- | Initializes the core of the app with a logger and a database.
 makeFoundation :: Settings -> IO App
@@ -98,7 +106,7 @@ makeFoundation settings = do
         (Sql.pgConnStr  $ Settings.databaseConf settings)
         (Sql.pgPoolSize $ Settings.databaseConf settings)
 
-    charIDs <- Logger.runLoggingT (Sql.runSqlPool initDB pool) logFunc
+    charIDs <- Logger.runLoggingT (Sql.runSqlPool (initDB settings) pool) logFunc
     let foundation = mkFoundation pool charIDs
     void . forkIO $ Queue.quickManager foundation
     return foundation

@@ -54,16 +54,23 @@ getChangelogR = do
 -- | Renders the homepage of the website.
 getHomeR :: Handler Html
 getHomeR = do
-    privilege <- App.getPrivilege
-    newsList  <- runDB $ traverse withAuthor
-                         =<< selectList [] [Desc NewsTime, LimitTo 5]
-    topics    <- runDB $ Forum.selectWithAuthors
+    isLanMode <- App.lanModeEnabled
+    (newsList, topics) <-
+        if isLanMode then
+            return ([], [])
+        else do
+            privilege <- App.getPrivilege
+            newsList <- runDB $ traverse withAuthor
+                                 =<< selectList [] [Desc NewsTime, LimitTo 5]
+            topics   <- runDB $ Forum.selectWithAuthors
                          (Forum.filterTopics privilege [])
                          [Desc ForumTopicTime, LimitTo 10]
+            return (newsList, topics)
     citelink  <- liftIO Link.cite
-    App.lastModified $
-        max (maybe epoch (forumTopicTime . citeVal) $ headMay topics)
-            (maybe epoch (newsTime . fst) $ headMay newsList)
+    unless isLanMode $
+        App.lastModified $
+            max (maybe epoch (forumTopicTime . citeVal) $ headMay topics)
+                (maybe epoch (newsTime . fst) $ headMay newsList)
     defaultLayout do
         setTitle "Unison Arena"
         $(widgetFile "tooltip/tooltip")

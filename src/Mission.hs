@@ -77,10 +77,13 @@ newtype Unlocks = Unlocks (HashSet Text)
 -- all Characters will always be returned.
 unlocked :: Handler Unlocks
 unlocked = cached do
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
     unlockAll <- getsYesod $ Settings.unlockAll . App.settings
     mwho <- Auth.maybeAuthId
     privilege <- App.getPrivilege
     Unlocks <$> case mwho of
+        _ | lanMode ->
+            return $ keysSet Characters.map
         Just who | not unlockAll && privilege < Moderator ->
             getUnlocked <$> getsYesod App.characterIDs
                         <*> runDB (selectList [UnlockedUser ==. who] [])
@@ -107,18 +110,27 @@ getUnlocked ids unlocks = freeChars `union` setFromList (mapMaybe look unlocks)
 -- have a mission, or the user has already completed their mission.
 -- Otherwise, returns a list of goals paired with the user's progress on each.
 userMission :: Text -> Handler (Maybe (Seq (Goal, Int)))
-userMission char = fromMaybe mempty <$> runMaybeT do
-    who     <- MaybeT Auth.maybeAuthId
-    charID  <- characterID char
-    mission <- MaybeT . return $ lookup char Missions.map
-    (Just . zip mission <$>) . lift $ runDB do
-        alreadyUnlocked <-
-            selectFirst [UnlockedUser ==. who, UnlockedCharacter ==. charID] []
-        if isJust alreadyUnlocked then
-            return $ Goal.reach <$> mission
-        else
-            setObjectives mission <$>
-                selectList [MissionUser ==. who, MissionCharacter ==. charID] []
+userMission char = do
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    if lanMode then
+        return Nothing
+    else
+        fromMaybe mempty <$> runMaybeT do
+            who     <- MaybeT Auth.maybeAuthId
+            charID  <- characterID char
+            mission <- MaybeT . return $ lookup char Missions.map
+            (Just . zip mission <$>) . lift $ runDB do
+                alreadyUnlocked <-
+                    selectFirst
+                        [UnlockedUser ==. who, UnlockedCharacter ==. charID]
+                        []
+                if isJust alreadyUnlocked then
+                    return $ Goal.reach <$> mission
+                else
+                    setObjectives mission <$>
+                        selectList
+                            [MissionUser ==. who, MissionCharacter ==. charID]
+                            []
 
 -- | If @i >= length goals@, this will do nothing.
 data GoalIndex = GoalIndex { goals :: Seq Goal
@@ -161,15 +173,22 @@ updateProgress who amount GoalIndex{goals, char, i} = case goals !? i of
 -- of the mission not existing, the objective index exceeding the size of the
 -- mission, or the Character not existing in the character ID database.
 progress :: Progress -> Handler Bool
-progress Progress{amount = 0} = return False
-progress Progress{character, objective, amount} =
-    fromMaybe False <$> runMaybeT do
-        who   <- MaybeT Auth.maybeAuthId
-        goals <- MaybeT . return $ lookup character Missions.map
-        guard $ objective < length goals
-        char  <- characterID character
-        lift . runDB $
-            updateProgress who amount GoalIndex{ goals, char, i = objective }
+progress _ = do
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    if lanMode then
+        return False
+    else
+        progress'
+  where
+    progress' Progress{amount = 0} = return False
+    progress' Progress{character, objective, amount} =
+        fromMaybe False <$> runMaybeT do
+            who   <- MaybeT Auth.maybeAuthId
+            goals <- MaybeT . return $ lookup character Missions.map
+            guard $ objective < length goals
+            char  <- characterID character
+            lift . runDB $
+                updateProgress who amount GoalIndex{ goals, char, i = objective }
 
 -- | Using a list of database mission entries for a user, maps goals onto the
 -- user's progress toward those goals.
@@ -202,13 +221,15 @@ newUsage x = Usage x 0 0 0 0
 -- This function should only be called when the user logged in wins a match.
 processWin :: [Text] -> Handler ()
 processWin team = do
-    who      <- Auth.requireAuthId
-    ids      <- getsYesod App.characterIDs
-    unlocks  <- unlocked
-    let chars = mapMaybe (`Bimap.lookupR` ids) team
-    runDB do
-        traverse_ ups chars
-        traverse_ (updateProgress who 1) $ winners ids team unlocks
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    unless lanMode do
+        who      <- Auth.requireAuthId
+        ids      <- getsYesod App.characterIDs
+        unlocks  <- unlocked
+        let chars = mapMaybe (`Bimap.lookupR` ids) team
+        runDB do
+            traverse_ ups chars
+            traverse_ (updateProgress who 1) $ winners ids team unlocks
   where
     ups char = upsert (newUsage char){ usagePicked = 1, usageWins = 1 }
                [UsagePicked +=. 1, UsageWins +=. 1]
@@ -218,11 +239,13 @@ processWin team = do
 -- ties.
 processDefeat :: [Text] -> Handler ()
 processDefeat team = do
-    who <- Auth.requireAuthId
-    ids <- getsYesod App.characterIDs
-    runDB do
-        traverse_ (resetGoal ids who) Missions.consecutiveWins
-        traverse_ ups $ mapMaybe (`Bimap.lookupR` ids) team
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    unless lanMode do
+        who <- Auth.requireAuthId
+        ids <- getsYesod App.characterIDs
+        runDB do
+            traverse_ (resetGoal ids who) Missions.consecutiveWins
+            traverse_ ups $ mapMaybe (`Bimap.lookupR` ids) team
   where
     ups char = upsert (newUsage char){ usagePicked = 1, usageLosses = 1 }
                [UsagePicked +=. 1, UsageLosses +=. 1]
@@ -231,10 +254,12 @@ processDefeat team = do
 -- This function should always be called at the end of a game.
 processUnpicked :: [Text] -> Handler ()
 processUnpicked team = do
-    ids             <- getsYesod App.characterIDs
-    Unlocks unlocks <- unlocked
-    runDB . traverse_ ups . mapMaybe (`Bimap.lookupR` ids) . toList $
-        unlocks `difference` setFromList team
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    unless lanMode do
+        ids             <- getsYesod App.characterIDs
+        Unlocks unlocks <- unlocked
+        runDB . traverse_ ups . mapMaybe (`Bimap.lookupR` ids) . toList $
+            unlocks `difference` setFromList team
   where
     ups char = upsert (newUsage char){ usageUnpicked = 1 }
                [UsageUnpicked +=. 1]
@@ -255,14 +280,18 @@ resetGoal _ _ _ = return ()
 awardDNA :: Queue.Section -> Outcome -> Maybe War -> Handler [Reward]
 awardDNA Queue.Private _     _   = return []
 awardDNA Queue.Quick outcome war = do
-    (who, user)   <- Auth.requireAuthPair
-    dnaConf       <- getsYesod $ Settings.dnaConf . App.settings
-    UTCTime day _ <- liftIO getCurrentTime
-    let jDay       = Just day
-    let tallies    = tallyDNA Queue.Quick outcome war dnaConf jDay user
-    runDB . Sql.update who $ updateLatestWin outcome jDay
-        [UserLatestGame =. jDay, UserDna +=. sum (Reward.amount <$> tallies)]
-    return tallies
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    if lanMode then
+        return []
+    else do
+        (who, user)   <- Auth.requireAuthPair
+        dnaConf       <- getsYesod $ Settings.dnaConf . App.settings
+        UTCTime day _ <- liftIO getCurrentTime
+        let jDay       = Just day
+        let tallies    = tallyDNA Queue.Quick outcome war dnaConf jDay user
+        runDB . Sql.update who $ updateLatestWin outcome jDay
+            [UserLatestGame =. jDay, UserDna +=. sum (Reward.amount <$> tallies)]
+        return tallies
 
 -- | Modifies 'UserLatestWin' to today if the user won.
 -- This is used to calculate first-win-of-the-day bonuses.
@@ -309,9 +338,13 @@ outcomeDNA Queue.Quick Tie     = Settings.quickTie
 
 -- | Returns usage stats about all characters in the database.
 getUsageRates :: Handler [UsageRate]
-getUsageRates =
-    mapMaybe . findUsage <$> getsYesod App.characterIDs
-                         <*> runDB (selectList [] [])
+getUsageRates = do
+    lanMode <- getsYesod $ Settings.lanMode . App.settings
+    if lanMode then
+        return []
+    else
+        mapMaybe . findUsage <$> getsYesod App.characterIDs
+                             <*> runDB (selectList [] [])
 
 -- | Matches a @Usage@ with a 'Character' from 'Characters.map'.
 findUsage :: Bimap CharacterId Text -> Entity Usage -> Maybe UsageRate

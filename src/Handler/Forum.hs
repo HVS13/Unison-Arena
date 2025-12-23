@@ -36,6 +36,7 @@ import           Util ((!?), epoch, mapFromKeyed)
 -- | Renders a 'User' profile.
 getProfileR :: Text -> Handler Html
 getProfileR name = do
+    App.requireLanDisabled
     muser          <- runDB $ selectFirst [UserName ==. name] []
     Entity _ user  <- maybe notFound return muser
     let User{..}    = user
@@ -50,6 +51,7 @@ inCategory category (BoardIndex x _ _) = category == boardCategory x
 -- | Renders the forums.
 getForumsR :: Handler Html
 getForumsR = do
+    App.requireLanDisabled
     modified  <- runDB $ selectFirst [] [Desc ForumTopicModified]
     App.lastModified $ maybe epoch (forumTopicModified . entityVal) modified
     privilege <- App.getPrivilege
@@ -69,6 +71,7 @@ getForumsR = do
 -- | Renders a 'ForumBoard'.
 getBoardR :: ForumBoard -> Handler Html
 getBoardR board = do
+    App.requireLanDisabled
     privilege <- App.getPrivilege
     timestamp <- liftIO Link.makeTimestamp
     topics    <- runDB $ selectWithAuthors
@@ -81,6 +84,7 @@ getBoardR board = do
 -- | Renders a 'ForumTopic'.
 getTopicR :: Key ForumTopic -> Handler Html
 getTopicR topicId = do
+    App.requireLanDisabled
     mwho           <- Auth.maybeAuthId
     privilege      <- App.getPrivilege
     ForumTopic{..} <- runDB $ get404 topicId
@@ -101,6 +105,7 @@ getTopicR topicId = do
 -- | Adds to a 'ForumTopic'. Requires authentication.
 postTopicR :: Key ForumTopic -> Handler Html
 postTopicR topicId = do
+    App.requireLanDisabled
     ForumTopic{..} <- runDB $ get404 topicId
     if forumTopicState /= Open then redirect $ TopicR topicId else do
         who        <- Auth.requireAuthId
@@ -145,6 +150,7 @@ postTopicR topicId = do
 -- | Renders a page for creating a new 'ForumTopic'. Requires authentication.
 getNewTopicR :: ForumBoard -> Handler Html
 getNewTopicR board = do
+    App.requireLanDisabled
     (who, user)       <- Auth.requireAuthPair
     time              <- liftIO getCurrentTime
     (title, _)        <- breadcrumbs
@@ -155,6 +161,7 @@ getNewTopicR board = do
 -- | Creates a new 'ForumTopic'. Requires authentication.
 postNewTopicR :: ForumBoard -> Handler Html
 postNewTopicR board = do
+    App.requireLanDisabled
     (who, user) <- Auth.requireAuthPair
     time        <- liftIO getCurrentTime
     (title, _)  <- breadcrumbs

@@ -103,6 +103,10 @@ data Settings = Settings
 
     , authDummyLogin         :: Bool
     -- ^ Indicate if auth dummy login should be enabled.
+    , lanMode                :: Bool
+    -- ^ LAN mode disables account/mission/forum features for quick play.
+    , lanResetDb             :: Bool
+    -- ^ Clears user-facing tables on startup for LAN mode.
     } deriving (Show, Read)
 
 instance FromJSON Settings where
@@ -133,6 +137,8 @@ instance FromJSON Settings where
         analytics              <- o .:? "analytics"
 
         authDummyLogin         <- o .:? "auth-dummy-login" .!= dev
+        lanMode                <- o .:? "lan-mode"        .!= False
+        lanResetDb             <- o .:? "lan-reset-db"    .!= False
 
         unlockAll              <- o .:? "unlock-all"       .!= dev
         turnLength             <- (* 1e6) <$> o .: "turn-length"

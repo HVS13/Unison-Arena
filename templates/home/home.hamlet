@@ -20,14 +20,18 @@
 
 <section>
   <h1>Unison Arena
-  <h2>News
-  $forall new <- newsList
-    ^{news new}
+  $if isLanMode
+    <p>LAN mode is active. News and forums are disabled.
+  $else
+    <h2>News
+    $forall new <- newsList
+      ^{news new}
 
-<aside #forums>
-  <h1>Recent Activity
-  <a .refer href=@{ForumsR}>
-    Go to forums
-  $forall cite <- topics
-    <p>
-      ^{citelink cite}
+$if not isLanMode
+  <aside #forums>
+    <h1>Recent Activity
+    <a .refer href=@{ForumsR}>
+      Go to forums
+    $forall cite <- topics
+      <p>
+        ^{citelink cite}

@@ -11,6 +11,8 @@ module Application.App
   , Route(..)
   , AppPersistEntity
   , getPrivilege
+  , lanModeEnabled
+  , requireLanDisabled
   , liftDB
   , unchanged304
   , lastModified
@@ -106,6 +108,12 @@ getPrivilege :: ∀ m. (MonadHandler m, App ~ HandlerSite m) => m Privilege
 getPrivilege = liftHandler . cached $
                maybe Guest (userPrivilege . snd) <$> Auth.maybeAuthPair
 
+lanModeEnabled :: Handler Bool
+lanModeEnabled = getsYesod $ Settings.lanMode . settings
+
+requireLanDisabled :: Handler ()
+requireLanDisabled = whenM lanModeEnabled notFound
+
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerFor App) (FormResult x, Widget)
 
@@ -116,14 +124,19 @@ type AppPersistEntity a = ( PersistEntity a
                           )
 
 getNavLinks :: Handler [(Route App, Html)]
-getNavLinks =
-    withAdmin [ (HomeR,   "Home")
-              , (GuideR,  "Guide")
-              , (ForumsR, "Forums")
-              ] <$> isAuthenticated Admin
+getNavLinks = do
+    lanMode <- lanModeEnabled
+    links <- withAdmin [ (HomeR,   "Home")
+                       , (GuideR,  "Guide")
+                       , (ForumsR, "Forums")
+                       ] <$> isAuthenticated Admin
+    return if lanMode then filter (not . isLanHidden . fst) links else links
   where
     withAdmin xs Authorized = xs ++ [(AdminR, "Admin")]
     withAdmin xs _          = xs
+    isLanHidden ForumsR = True
+    isLanHidden AdminR  = True
+    isLanHidden _       = False
 
 origin :: Route App -> Route App
 origin BoardR{}     = ForumsR
@@ -325,11 +338,12 @@ instance YesodAuth App where
                                    utctDay =<< liftIO getCurrentTime
 
     authPlugins :: App -> [AuthPlugin App]
-    authPlugins app = AuthEmail.authEmail : extraAuthPlugins
-        -- Enable authDummy login if enabled.
-        where
-          extraAuthPlugins =
-              [Dummy.authDummy | Settings.authDummyLogin $ settings app]
+    authPlugins app
+      | Settings.lanMode $ settings app = [Dummy.authDummy]
+      | otherwise = AuthEmail.authEmail : extraAuthPlugins
+      where
+        extraAuthPlugins =
+            [Dummy.authDummy | Settings.authDummyLogin $ settings app]
 
 isAuthenticated :: Privilege -> Handler AuthResult
 isAuthenticated level = do

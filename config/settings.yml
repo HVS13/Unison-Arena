@@ -26,6 +26,8 @@ detailed-logging: false
 # mutable-static: false
 # skip-combining: false
 # auth-dummy-login: false
+# lan-mode:         "_env:NU_LAN_MODE:false"
+# lan-reset-db:     "_env:NU_LAN_RESET_DB:false"
 
 # NB: If you need a numeric value (e.g. 123) to parse as a String, wrap it in single quotes (e.g. "_env:YESOD_PGPASS:'123'")
 # See https://github.com/yesodweb/yesod/wiki/Configuration#parsing-numeric-values-as-strings

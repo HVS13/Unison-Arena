@@ -31,6 +31,7 @@ import qualified Mission.UsageRate as UsageRate
 -- | Behind-the-scenes utilities for admin accounts. Requires authorization.
 getAdminR :: Handler Html
 getAdminR = do
+    App.requireLanDisabled
     App.unchanged304
     app <- getYesod
     (newsForm, enctype) <- generateFormPost =<< getNewsForm
@@ -42,6 +43,7 @@ getAdminR = do
 -- | 'getAdminR' for creating news posts.
 postAdminR :: Handler Html
 postAdminR = do
+    App.requireLanDisabled
     app <- getYesod
     ((result, newsForm), enctype) <- runFormPost =<< getNewsForm
     case result of
@@ -57,6 +59,7 @@ postAdminR = do
 -- | Displays 'Usage' stats of characters.
 getUsageR :: Handler Html
 getUsageR = do
+    App.requireLanDisabled
     usageRates <- sort <$> Mission.getUsageRates
     defaultLayout $(widgetFile "admin/usage")
   where
