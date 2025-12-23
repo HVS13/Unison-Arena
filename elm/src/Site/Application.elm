@@ -118,7 +118,7 @@ app websocket ports =
                         H.div [ A.id "main" ]
                             els
             in
-            Document "Naruto Unison"
+            Document "Unison Arena"
                 << List.singleton
                 << contents
                 << showError

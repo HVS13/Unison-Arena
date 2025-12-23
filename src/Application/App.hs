@@ -203,7 +203,7 @@ instance Yesod App where
         navLinks         <- getNavLinks
 
         pc <- widgetToPageContent do
-            setTitle . toHtml $ title ++ " - Naruto Unison"
+            setTitle . toHtml $ title ++ " - Unison Arena"
             $(widgetFile "include/cookie.min")
             $(widgetFile "include/jquery.min")
             $(widgetFile "include/main")
@@ -377,7 +377,7 @@ instance YesodAuthEmail App where
             , partEncoding = Mail.None
             , partDisposition = Mail.DefaultDisposition
             , partContent = Mail.PartContent $ LazyEncoding.encodeUtf8 [stext|
-Welcome to Naruto Unison! To confirm your email address, click on the link below or copy and paste it into your address bar.
+Welcome to Unison Arena! To confirm your email address, click on the link below or copy and paste it into your address bar.
 \#{verurl}
 |]
             , partHeaders = []
@@ -387,7 +387,7 @@ Welcome to Naruto Unison! To confirm your email address, click on the link below
             , partEncoding = Mail.None
             , partDisposition = Mail.DefaultDisposition
             , partContent = Mail.PartContent $ Blaze.renderHtml [shamlet|
-<p>Welcome to Naruto Unison! To confirm your email address, click on the link below or copy and paste it into your address bar.
+<p>Welcome to Unison Arena! To confirm your email address, click on the link below or copy and paste it into your address bar.
 <p>
     <a href=#{verurl}>#{verurl}
 |]

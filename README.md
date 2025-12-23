@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.com/naruto-unison/naruto-unison.svg?branch=master)](https://travis-ci.com/naruto-unison/naruto-unison)
 [![License: BSD-3-Clause](https://img.shields.io/github/license/naruto-unison/naruto-unison)](https://opensource.org/licenses/BSD-3-Clause)
 
-# Naruto Unison
+# Unison Arena
 
 The next generation of Naruto Arena, built from the ground up in Haskell and Elm.
 
@@ -120,11 +120,11 @@ Readability is one of Haskell's key strengths, so browsing through sources of we
 
 ### Why
 
-Although Haskell is an unusual language, its idiosyncracies make it the perfect fit for a project such as Naruto Unison.
+Although Haskell is an unusual language, its idiosyncracies make it the perfect fit for a project such as Unison Arena.
 
 #### Concurrency
 
-Haskell is excellent at parallel computing. Naruto Unison is built on top of the [Yesod framework](https://www.yesodweb.com/), a fully asynchronous web server. With lightweight green threads and event-based system calls, every connection to the server runs smoothly in separate non-blocking processes, communicating via [transactional channels](http://hackage.haskell.org/package/stm/).
+Haskell is excellent at parallel computing. Unison Arena is built on top of the [Yesod framework](https://www.yesodweb.com/), a fully asynchronous web server. With lightweight green threads and event-based system calls, every connection to the server runs smoothly in separate non-blocking processes, communicating via [transactional channels](http://hackage.haskell.org/package/stm/).
 
 #### Separation of Pure and Impure Functions
 
@@ -152,7 +152,7 @@ This function does exactly what it looks like: sums up all effects with the `Sna
 
 #### Monads
 
-Another cool thing Haskell can do is define custom procedural contexts. Naruto Unison's `MonadPlay` monad typeclass is a purity-agnostic game-state transformation that provides the context of the current user and target. What that means in practice is that character implementations, even fairly complex ones, can be written very simply. For example, [Chiyo's Self-Sacrifice Reanimation](src/Game/Characters/Shippuden/Family.hs) skill has the description, *"Chiyo prepares to use her forbidden healing technique on an ally. The next time their health reaches 0, their health is fully restored, they are cured of harmful effects, and Chiyo's health is reduced to 1."* This is its implementation:
+Another cool thing Haskell can do is define custom procedural contexts. Unison Arena's `MonadPlay` monad typeclass is a purity-agnostic game-state transformation that provides the context of the current user and target. What that means in practice is that character implementations, even fairly complex ones, can be written very simply. For example, [Chiyo's Self-Sacrifice Reanimation](src/Game/Characters/Shippuden/Family.hs) skill has the description, *"Chiyo prepares to use her forbidden healing technique on an ally. The next time their health reaches 0, their health is fully restored, they are cured of harmful effects, and Chiyo's health is reduced to 1."* This is its implementation:
 
 ```haskell
 trap 0 OnRes do

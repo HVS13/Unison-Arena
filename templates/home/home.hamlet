@@ -19,7 +19,7 @@
     ^{change New "Konohamaru Sarutobi" Original}
 
 <section>
-  <h1>Naruto Unison
+  <h1>Unison Arena
   <h2>News
   $forall new <- newsList
     ^{news new}

@@ -1,6 +1,6 @@
 <h1>#{title}
 <p>
-  Naruto Unison games are played with teams of three different characters. The characters in the Original category are available from the start, but others must be unlocked by completing specific missions.
+  Unison Arena games are played with teams of three different characters. The characters in the Original category are available from the start, but others must be unlocked by completing specific missions.
 <p>
   <a href=@{PlayR}>
     Practice games against AI

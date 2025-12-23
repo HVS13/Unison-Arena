@@ -65,7 +65,7 @@ getHomeR = do
         max (maybe epoch (forumTopicTime . citeVal) $ headMay topics)
             (maybe epoch (newsTime . fst) $ headMay newsList)
     defaultLayout do
-        setTitle "Naruto Unison"
+        setTitle "Unison Arena"
         $(widgetFile "tooltip/tooltip")
         $(widgetFile "home/home")
   where
